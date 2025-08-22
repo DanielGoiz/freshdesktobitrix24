@@ -1,8 +1,8 @@
 import axios from "axios";
 
-const BITRIX_WEBHOOK_URL = "https://SEU_DOMINIO.bitrix24.com/rest/1/SEU_TOKEN/tasks.task.add";
-const RESPONSIBLE_ID = 1; // ID do usuário responsável na sua conta Bitrix24
-const DEADLINE_DAYS = 1; // prazo padrão em dias
+const BITRIX_WEBHOOK_URL = "https://alfanexus.bitrix24.com.br/rest/13/g85cgof62pmxtmtt/tasks.task.add";
+const RESPONSIBLE_ID = 13; // ID do usuário responsável na sua conta Bitrix24
+const DEADLINE_DAYS = 3; // prazo padrão em dias
 const MAX_RETRIES = 3; // número de tentativas em caso de erro temporário
 
 export default async function handler(req, res) {
