@@ -1,10 +1,9 @@
 import axios from "axios";
 
 const BITRIX_WEBHOOK_URL = "https://alfanexus.bitrix24.com.br/rest/13/pxv2w31pfrpuk2oe/tasks.task.add";
-const RESPONSIBLE_ID = 13;       // responsável principal
-const ACCOMPLICES = [14, 15];    // co-responsáveis
-const DEADLINE_DAYS = 3;          // prazo padrão
-const MAX_RETRIES = 3;            // número de tentativas em caso de falha
+const RESPONSIBLE_ID = 13;
+const DEADLINE_DAYS = 3;
+const MAX_RETRIES = 3;
 
 // Função para calcular deadline
 const getDeadline = (days = DEADLINE_DAYS) => {
@@ -18,44 +17,33 @@ const buildTitle = (ticketId, subject) => {
   return `Freshdesk #${ticketId} – ${subject}`.slice(0, 255);
 };
 
-// Função para montar a descrição estruturada da tarefa
+// Função para montar descrição detalhada
 const buildDescription = (data) => {
   const requesterEmail =
     data.requester_email ||
     (data.requester && data.requester.email) ||
     (data.ticket && data.ticket.requester && data.ticket.requester.email) ||
-    data.email ||
-    "Não informado";
+    data.email;
 
-  const descriptionText =
+  const description =
     data.description_text ||
     data.description ||
     (data.ticket && (data.ticket.description_text || data.ticket.description)) ||
     "Sem descrição";
 
-  const tags = data.tags ? data.tags.join(", ") : "Nenhuma";
-  const status = data.status || "Não informado";
-  const priority = data.priority || "Não informado";
-  const attachments = data.attachments && data.attachments.length
-    ? data.attachments.map((url, idx) => `${idx + 1}. ${url}`).join("\n")
-    : "Nenhum";
+  const tags = data.tags ? `Tags: ${data.tags.join(", ")}` : null;
+  const status = data.status ? `Status do ticket: ${data.status}` : null;
 
-  // Monta a descrição com seções
   return [
-    "=== DESCRIÇÃO ===",
-    descriptionText,
+    description,
     "",
-    "=== METADADOS DO TICKET ===",
-    `Solicitante: ${requesterEmail}`,
-    `Status: ${status}`,
-    `Prioridade: ${priority}`,
-    `Tags: ${tags}`,
-    "",
-    "=== ANEXOS ===",
-    attachments,
-    "",
+    "—",
+    "Metadados do Ticket:",
+    requesterEmail ? `Solicitante: ${requesterEmail}` : null,
+    status,
+    tags,
     "Origem: Freshdesk"
-  ].join("\n");
+  ].filter(Boolean).join("\n");
 };
 
 // Função de envio com retry
@@ -75,7 +63,9 @@ const sendTask = async (payload) => {
 };
 
 export default async function handler(req, res) {
-  if (req.method !== "POST") return res.status(405).json({ error: "Método não permitido" });
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Método não permitido" });
+  }
 
   const data = req.body || {};
   const ticketId = data.id || data.ticket_id || (data.ticket && data.ticket.id);
@@ -92,7 +82,6 @@ export default async function handler(req, res) {
       TITLE: title,
       DESCRIPTION: description,
       RESPONSIBLE_ID: RESPONSIBLE_ID,
-      ACCOMPLICES: ACCOMPLICES,
       DEADLINE: deadline,
       PRIORITY: 2, // alta
       STATUS: 2    // nova
@@ -103,9 +92,6 @@ export default async function handler(req, res) {
     const result = await sendTask(bitrixPayload);
     return res.status(200).json({ ok: true, bitrix_result: result });
   } catch (err) {
-    return res.status(500).json({
-      error: "Falha ao criar tarefa no Bitrix24",
-      details: err.response?.data || err.message
-    });
+    return res.status(500).json({ error: "Falha ao criar tarefa no Bitrix24", details: err.response?.data || err.message });
   }
 }
