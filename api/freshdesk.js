@@ -2,7 +2,7 @@ import axios from "axios";
 
 const BITRIX_WEBHOOK_URL = "https://alfanexus.bitrix24.com.br/rest/13/pxv2w31pfrpuk2oe/tasks.task.add";
 const RESPONSIBLE_ID = 13;       // responsável principal
-const ACCOMPLICES = [1];    // co-responsáveis
+const ACCOMPLICES = [1];          // co-responsáveis
 const DEADLINE_DAYS = 3;          // prazo padrão
 const MAX_RETRIES = 3;            // número de tentativas em caso de falha
 
@@ -36,8 +36,16 @@ const buildDescription = (data) => {
   const tags = data.tags ? data.tags.join(", ") : "Nenhuma";
   const status = data.status || "Não informado";
   const priority = data.priority || "Não informado";
-  const attachments = data.attachments && data.attachments.length
-    ? data.attachments.map((url, idx) => `${idx + 1}. ${url}`).join("\n")
+
+  // Trata anexos de forma segura
+  const attachments = Array.isArray(data.attachments) && data.attachments.length
+    ? data.attachments
+        .map((a, idx) => {
+          // Se for objeto com content_url, usa o link; senão, assume string direta
+          if (typeof a === "object" && a.content_url) return `${idx + 1}. ${a.content_url}`;
+          return `${idx + 1}. ${a}`;
+        })
+        .join("\n")
     : "Nenhum";
 
   // Monta a descrição com seções
