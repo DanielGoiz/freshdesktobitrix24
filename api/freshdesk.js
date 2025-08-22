@@ -21,19 +21,26 @@ const buildTitle = (ticketId, subject) => `Freshdesk #${ticketId} – ${subject}
 const buildDescription = (data) => {
   const requesterEmail = data.requester_email || "Não informado";
   const descriptionText = data.description_text || "Sem descrição";
+
+  // Garante que tags seja array
   const tags = Array.isArray(data.tags) ? data.tags.join(", ") : "Nenhuma";
   const status = data.status || "Não informado";
   const priority = data.priority || "Não informado";
 
+  // Garante que attachments seja array
   let attachments = "Nenhum";
-  if (Array.isArray(data.attachments) && data.attachments.length) {
+  if (Array.isArray(data.attachments) && data.attachments.length > 0) {
     attachments = data.attachments
       .map((att, idx) => {
-        const url = att?.content_url || att;
-        const name = att?.name || `Anexo ${idx + 1}`;
+        if (!att) return null;
+        const url = att.content_url || att;
+        const name = att.name || `Anexo ${idx + 1}`;
+        if (!url) return null;
         return `${idx + 1}. ${name}: ${url}`;
       })
+      .filter(Boolean)
       .join("\n");
+    if (!attachments) attachments = "Nenhum";
   }
 
   return [
