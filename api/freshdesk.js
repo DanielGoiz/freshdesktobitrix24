@@ -7,19 +7,16 @@ const RESPONSIBLE_ID = 13;
 const DEADLINE_DAYS = 3;
 const MAX_RETRIES = 3;
 
-// Função para calcular deadline
 const getDeadline = (days = DEADLINE_DAYS) => {
   const deadline = new Date();
   deadline.setUTCDate(deadline.getUTCDate() + days);
   return deadline.toISOString();
 };
 
-// Função para montar título da tarefa
 const buildTitle = (ticketId, requesterName, companyName) => {
   return `Chamado #${ticketId} - ${requesterName || "Cliente"} (${companyName || "Empresa"})`.slice(0, 255);
 };
 
-// Função para montar descrição detalhada
 const buildDescription = (data) => {
   const requesterName =
     data.requester_name ||
@@ -34,14 +31,11 @@ const buildDescription = (data) => {
     data.email ||
     "Não informado";
 
-  const companyName =
-    data.company_name ||
-    (data.ticket && data.ticket.company && data.ticket.company.name) ||
-    "Empresa não informada";
+  // Aqui pegamos o assunto do Freshdesk e usamos como nome da empresa
+  const companyName = data.subject || (data.ticket && data.ticket.subject) || "Empresa não informada";
 
-  const subject = data.subject || (data.ticket && data.ticket.subject) || "Sem assunto";
-
-  const problemType = data.problem_type || "Não informado";
+  // Tipo do Freshdesk vira assunto da tarefa
+  const subject = data.type || (data.ticket && data.ticket.type) || "Sem assunto";
 
   const description =
     data.description_text ||
@@ -61,7 +55,6 @@ Assunto: ${subject}
 Nome do Cliente: ${requesterName}
 Empresa: ${companyName}
 Email do Cliente: ${requesterEmail}
-Tipo de Problema: ${problemType}
 
 Descrição do Problema:
 ${description}
@@ -70,7 +63,6 @@ ${hasAttachments}
   `;
 };
 
-// Função de envio com retry para criar tarefa
 const sendTask = async (payload) => {
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
@@ -86,7 +78,6 @@ const sendTask = async (payload) => {
   }
 };
 
-// Função para enviar notificação
 const sendNotification = async (userId, message) => {
   try {
     const response = await axios.post(
@@ -118,12 +109,11 @@ export default async function handler(req, res) {
     (data.ticket && data.ticket.requester && data.ticket.requester.name) ||
     "Cliente";
 
-  const companyName =
-    data.company_name ||
-    (data.ticket && data.ticket.company && data.ticket.company.name) ||
-    "Empresa não informada";
+  // Assunto do Freshdesk como nome da empresa
+  const companyName = data.subject || (data.ticket && data.ticket.subject) || "Empresa não informada";
 
-  const subject = data.subject || (data.ticket && data.ticket.subject) || "Sem assunto";
+  // Tipo do Freshdesk como assunto da tarefa
+  const subject = data.type || (data.ticket && data.ticket.type) || "Sem assunto";
 
   if (!ticketId) return res.status(400).json({ error: "Ticket ID ausente" });
 
@@ -137,16 +127,14 @@ export default async function handler(req, res) {
       DESCRIPTION: description,
       RESPONSIBLE_ID: RESPONSIBLE_ID,
       DEADLINE: deadline,
-      PRIORITY: 2, // alta
-      STATUS: 2    // nova
+      PRIORITY: 2,
+      STATUS: 2
     }
   };
 
   try {
-    // cria a tarefa
     const result = await sendTask(bitrixPayload);
 
-    // dispara notificação para o responsável
     const notificationMessage = `🔔 Novo chamado aberto!\nChamado #${ticketId} - ${requesterName} (${companyName})\nAssunto: ${subject}`;
     await sendNotification(RESPONSIBLE_ID, notificationMessage);
 
