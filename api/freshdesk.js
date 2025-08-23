@@ -1,6 +1,8 @@
 import axios from "axios";
 
 const BITRIX_WEBHOOK_URL = "https://alfanexus.bitrix24.com.br/rest/13/pxv2w31pfrpuk2oe/tasks.task.add";
+const BITRIX_NOTIFY_URL = "https://alfanexus.bitrix24.com.br/rest/13/pxv2w31pfrpuk2oe/im.notify.system.add";
+
 const RESPONSIBLE_ID = 13;
 const DEADLINE_DAYS = 3;
 const MAX_RETRIES = 3;
@@ -13,17 +15,26 @@ const getDeadline = (days = DEADLINE_DAYS) => {
 };
 
 // Função para montar título da tarefa
-const buildTitle = (ticketId, subject) => {
-  return `Freshdesk #${ticketId} – ${subject}`.slice(0, 255);
+const buildTitle = (ticketId, requesterName) => {
+  return `Chamado #${ticketId} - ${requesterName || "Cliente"}`.slice(0, 255);
 };
 
 // Função para montar descrição detalhada
 const buildDescription = (data) => {
+  const requesterName =
+    data.requester_name ||
+    (data.requester && data.requester.name) ||
+    (data.ticket && data.ticket.requester && data.ticket.requester.name) ||
+    "Cliente";
+
   const requesterEmail =
     data.requester_email ||
     (data.requester && data.requester.email) ||
     (data.ticket && data.ticket.requester && data.ticket.requester.email) ||
-    data.email;
+    data.email ||
+    "Não informado";
+
+  const subject = data.subject || (data.ticket && data.ticket.subject) || "Sem assunto";
 
   const description =
     data.description_text ||
@@ -31,22 +42,18 @@ const buildDescription = (data) => {
     (data.ticket && (data.ticket.description_text || data.ticket.description)) ||
     "Sem descrição";
 
-  const tags = data.tags ? `Tags: ${data.tags.join(", ")}` : null;
-  const status = data.status ? `Status do ticket: ${data.status}` : null;
+  return `
+Assunto: ${subject}
 
-  return [
-    description,
-    "",
-    "—",
-    "Metadados do Ticket:",
-    requesterEmail ? `Solicitante: ${requesterEmail}` : null,
-    status,
-    tags,
-    "Origem: Freshdesk"
-  ].filter(Boolean).join("\n");
+Nome do Cliente: ${requesterName}
+Email do Cliente: ${requesterEmail}
+
+Descrição do Problema:
+${description}
+  `;
 };
 
-// Função de envio com retry
+// Função de envio com retry para criar tarefa
 const sendTask = async (payload) => {
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
@@ -62,6 +69,24 @@ const sendTask = async (payload) => {
   }
 };
 
+// Função para enviar notificação
+const sendNotification = async (userId, message) => {
+  try {
+    const response = await axios.post(
+      BITRIX_NOTIFY_URL,
+      {
+        USER_ID: userId,
+        MESSAGE: message
+      }
+    );
+    console.log("Notificação enviada:", response.data);
+    return response.data;
+  } catch (err) {
+    console.error("Erro ao enviar notificação:", err.response?.data || err.message);
+    throw err;
+  }
+};
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Método não permitido" });
@@ -69,11 +94,17 @@ export default async function handler(req, res) {
 
   const data = req.body || {};
   const ticketId = data.id || data.ticket_id || (data.ticket && data.ticket.id);
-  const subject = data.subject || (data.ticket && data.ticket.subject) || "Ticket sem assunto";
+  const requesterName =
+    data.requester_name ||
+    (data.requester && data.requester.name) ||
+    (data.ticket && data.ticket.requester && data.ticket.requester.name) ||
+    "Cliente";
+
+  const subject = data.subject || (data.ticket && data.ticket.subject) || "Sem assunto";
 
   if (!ticketId) return res.status(400).json({ error: "Ticket ID ausente" });
 
-  const title = buildTitle(ticketId, subject);
+  const title = buildTitle(ticketId, requesterName);
   const description = buildDescription(data);
   const deadline = getDeadline();
 
@@ -89,9 +120,18 @@ export default async function handler(req, res) {
   };
 
   try {
+    // cria a tarefa
     const result = await sendTask(bitrixPayload);
+
+    // dispara notificação para o responsável
+    const notificationMessage = `🔔 Novo chamado aberto!\nChamado #${ticketId} - ${requesterName}\nAssunto: ${subject}`;
+    await sendNotification(RESPONSIBLE_ID, notificationMessage);
+
     return res.status(200).json({ ok: true, bitrix_result: result });
   } catch (err) {
-    return res.status(500).json({ error: "Falha ao criar tarefa no Bitrix24", details: err.response?.data || err.message });
+    return res.status(500).json({
+      error: "Falha ao criar tarefa ou enviar notificação no Bitrix24",
+      details: err.response?.data || err.message
+    });
   }
 }
