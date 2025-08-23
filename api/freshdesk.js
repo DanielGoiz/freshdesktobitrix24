@@ -31,11 +31,7 @@ const buildDescription = (data) => {
     data.email ||
     "Não informado";
 
-  // Aqui pegamos o assunto do Freshdesk e usamos como nome da empresa
-  const companyName = data.subject || (data.ticket && data.ticket.subject) || "Empresa não informada";
-
-  // Tipo do Freshdesk vira assunto da tarefa
-  const subject = data.type || (data.ticket && data.ticket.type) || "Sem assunto";
+  const companyName = data.company_name || (data.ticket && data.ticket.company && data.ticket.company.name) || "Empresa não informada";
 
   const description =
     data.description_text ||
@@ -43,15 +39,14 @@ const buildDescription = (data) => {
     (data.ticket && (data.ticket.description_text || data.ticket.description)) ||
     "Sem descrição";
 
-  const hasAttachments =
-    (data.attachments && data.attachments.length > 0) ||
-    (data.ticket && data.ticket.attachments && data.ticket.attachments.length > 0)
-      ? "📎 Ticket contém anexos"
-      : "Sem anexos";
+  // Verificação correta de anexos
+  let hasAttachments = "Sem anexos";
+  const attachments = data.attachments || (data.ticket && data.ticket.attachments);
+  if (Array.isArray(attachments) && attachments.length > 0) {
+    hasAttachments = "📎 Ticket contém anexos";
+  }
 
   return `
-Assunto: ${subject}
-
 Nome do Cliente: ${requesterName}
 Empresa: ${companyName}
 Email do Cliente: ${requesterEmail}
@@ -109,11 +104,7 @@ export default async function handler(req, res) {
     (data.ticket && data.ticket.requester && data.ticket.requester.name) ||
     "Cliente";
 
-  // Assunto do Freshdesk como nome da empresa
-  const companyName = data.subject || (data.ticket && data.ticket.subject) || "Empresa não informada";
-
-  // Tipo do Freshdesk como assunto da tarefa
-  const subject = data.type || (data.ticket && data.ticket.type) || "Sem assunto";
+  const companyName = data.company_name || (data.ticket && data.ticket.company && data.ticket.company.name) || "Empresa não informada";
 
   if (!ticketId) return res.status(400).json({ error: "Ticket ID ausente" });
 
@@ -135,7 +126,7 @@ export default async function handler(req, res) {
   try {
     const result = await sendTask(bitrixPayload);
 
-    const notificationMessage = `🔔 Novo chamado aberto!\nChamado #${ticketId} - ${requesterName} (${companyName})\nAssunto: ${subject}`;
+    const notificationMessage = `🔔 Novo chamado aberto!\nChamado #${ticketId} - ${requesterName} (${companyName})`;
     await sendNotification(RESPONSIBLE_ID, notificationMessage);
 
     return res.status(200).json({ ok: true, bitrix_result: result });
