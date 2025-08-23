@@ -15,8 +15,8 @@ const getDeadline = (days = DEADLINE_DAYS) => {
 };
 
 // Função para montar título da tarefa
-const buildTitle = (ticketId, requesterName) => {
-  return `Chamado #${ticketId} - ${requesterName || "Cliente"}`.slice(0, 255);
+const buildTitle = (ticketId, requesterName, companyName) => {
+  return `Chamado #${ticketId} - ${requesterName || "Cliente"} (${companyName || "Empresa"})`.slice(0, 255);
 };
 
 // Função para montar descrição detalhada
@@ -34,7 +34,14 @@ const buildDescription = (data) => {
     data.email ||
     "Não informado";
 
+  const companyName =
+    data.company_name ||
+    (data.ticket && data.ticket.company && data.ticket.company.name) ||
+    "Empresa não informada";
+
   const subject = data.subject || (data.ticket && data.ticket.subject) || "Sem assunto";
+
+  const problemType = data.problem_type || "Não informado";
 
   const description =
     data.description_text ||
@@ -42,14 +49,24 @@ const buildDescription = (data) => {
     (data.ticket && (data.ticket.description_text || data.ticket.description)) ||
     "Sem descrição";
 
+  const hasAttachments =
+    (data.attachments && data.attachments.length > 0) ||
+    (data.ticket && data.ticket.attachments && data.ticket.attachments.length > 0)
+      ? "📎 Ticket contém anexos"
+      : "Sem anexos";
+
   return `
 Assunto: ${subject}
 
 Nome do Cliente: ${requesterName}
+Empresa: ${companyName}
 Email do Cliente: ${requesterEmail}
+Tipo de Problema: ${problemType}
 
 Descrição do Problema:
 ${description}
+
+${hasAttachments}
   `;
 };
 
@@ -94,17 +111,23 @@ export default async function handler(req, res) {
 
   const data = req.body || {};
   const ticketId = data.id || data.ticket_id || (data.ticket && data.ticket.id);
+
   const requesterName =
     data.requester_name ||
     (data.requester && data.requester.name) ||
     (data.ticket && data.ticket.requester && data.ticket.requester.name) ||
     "Cliente";
 
+  const companyName =
+    data.company_name ||
+    (data.ticket && data.ticket.company && data.ticket.company.name) ||
+    "Empresa não informada";
+
   const subject = data.subject || (data.ticket && data.ticket.subject) || "Sem assunto";
 
   if (!ticketId) return res.status(400).json({ error: "Ticket ID ausente" });
 
-  const title = buildTitle(ticketId, requesterName);
+  const title = buildTitle(ticketId, requesterName, companyName);
   const description = buildDescription(data);
   const deadline = getDeadline();
 
@@ -124,7 +147,7 @@ export default async function handler(req, res) {
     const result = await sendTask(bitrixPayload);
 
     // dispara notificação para o responsável
-    const notificationMessage = `🔔 Novo chamado aberto!\nChamado #${ticketId} - ${requesterName}\nAssunto: ${subject}`;
+    const notificationMessage = `🔔 Novo chamado aberto!\nChamado #${ticketId} - ${requesterName} (${companyName})\nAssunto: ${subject}`;
     await sendNotification(RESPONSIBLE_ID, notificationMessage);
 
     return res.status(200).json({ ok: true, bitrix_result: result });
