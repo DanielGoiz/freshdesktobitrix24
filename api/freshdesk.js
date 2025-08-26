@@ -121,7 +121,7 @@ export default async function handler(req, res) {
       DEADLINE: deadline,
       PRIORITY: 2,
       STATUS: 2
-      AUDITORS: [1]
+      AUDITORS: AUDITORS
     }
   };
 
