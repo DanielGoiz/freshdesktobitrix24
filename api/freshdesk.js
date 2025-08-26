@@ -120,7 +120,7 @@ export default async function handler(req, res) {
       RESPONSIBLE_ID: RESPONSIBLE_ID,
       DEADLINE: deadline,
       PRIORITY: 2,
-      STATUS: 2
+      STATUS: 2,
       AUDITORS: AUDITORS
     }
   };
