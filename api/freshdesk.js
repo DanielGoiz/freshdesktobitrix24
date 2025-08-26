@@ -6,6 +6,7 @@ const BITRIX_NOTIFY_URL = "https://alfanexus.bitrix24.com.br/rest/13/pxv2w31pfrp
 const RESPONSIBLE_ID = 13;
 const DEADLINE_DAYS = 3;
 const MAX_RETRIES = 3;
+const AUDITORS = [1];
 
 const getDeadline = (days = DEADLINE_DAYS) => {
   const deadline = new Date();
@@ -120,6 +121,7 @@ export default async function handler(req, res) {
       DEADLINE: deadline,
       PRIORITY: 2,
       STATUS: 2
+      AUDITORS: [1]
     }
   };
 
