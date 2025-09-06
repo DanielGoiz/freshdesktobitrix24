@@ -14,31 +14,16 @@ const getDeadline = (days = DEADLINE_DAYS) => {
   return deadline.toISOString();
 };
 
+// Título da tarefa → inclui empresa (subject do Freshdesk)
 const buildTitle = (ticketId, requesterName, companyName) => {
   return `Chamado #${ticketId} - ${requesterName || "Cliente"} (${companyName || "Empresa"})`.slice(0, 255);
 };
 
-const buildDescription = (data) => {
-  const requesterName =
-    data.requester_name ||
-    (data.requester && data.requester.name) ||
-    (data.ticket && data.ticket.requester && data.ticket.requester.name) ||
-    "Cliente";
-
-  const requesterEmail =
-    data.requester_email ||
-    (data.requester && data.requester.email) ||
-    (data.ticket && data.ticket.requester && data.ticket.requester.email) ||
-    data.email ||
-    "Não informado";
-
-  const companyName = data.company_name || (data.ticket && data.ticket.company && data.ticket.company.name) || "Empresa não informada";
-
-  const description =
-    data.description_text ||
-    data.description ||
-    (data.ticket && (data.ticket.description_text || data.ticket.description)) ||
-    "Sem descrição";
+// Descrição da tarefa → inclui empresa e anexos
+const buildDescription = (data, companyName) => {
+  const requesterName = data.requester_name || "Cliente";
+  const requesterEmail = data.requester_email || "Não informado";
+  const description = data.description_text || data.description || "Sem descrição";
 
   // Verificação correta de anexos
   let hasAttachments = "Sem anexos";
@@ -49,7 +34,7 @@ const buildDescription = (data) => {
 
   return `
 Nome do Cliente: ${requesterName}
-Empresa: ${companyName}
+Empresa: ${companyName || "Empresa não informada"}
 Email do Cliente: ${requesterEmail}
 
 Descrição do Problema:
@@ -76,13 +61,10 @@ const sendTask = async (payload) => {
 
 const sendNotification = async (userId, message) => {
   try {
-    const response = await axios.post(
-      BITRIX_NOTIFY_URL,
-      {
-        USER_ID: userId,
-        MESSAGE: message
-      }
-    );
+    const response = await axios.post(BITRIX_NOTIFY_URL, {
+      USER_ID: userId,
+      MESSAGE: message
+    });
     console.log("Notificação enviada:", response.data);
     return response.data;
   } catch (err) {
@@ -99,18 +81,13 @@ export default async function handler(req, res) {
   const data = req.body || {};
   const ticketId = data.id || data.ticket_id || (data.ticket && data.ticket.id);
 
-  const requesterName =
-    data.requester_name ||
-    (data.requester && data.requester.name) ||
-    (data.ticket && data.ticket.requester && data.ticket.requester.name) ||
-    "Cliente";
-
-  const companyName = data.company_name || (data.ticket && data.ticket.company && data.ticket.company.name) || "Empresa não informada";
+  const requesterName = data.requester_name || "Cliente";
+  const companyName = data.subject || "Empresa não informada"; // <-- subject do Freshdesk como empresa
 
   if (!ticketId) return res.status(400).json({ error: "Ticket ID ausente" });
 
   const title = buildTitle(ticketId, requesterName, companyName);
-  const description = buildDescription(data);
+  const description = buildDescription(data, companyName);
   const deadline = getDeadline();
 
   const bitrixPayload = {
